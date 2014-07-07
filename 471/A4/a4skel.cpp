@@ -63,6 +63,7 @@ main (int argc, char **argv){
 
   std::cout << "Attempting to create socket; " ;
   sd = socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
+  sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
   if (sd < 0)
   { std::cout << "failed.\n  Result is " << sd
   	      << ". Are you running as root?\n  " ;
@@ -143,28 +144,18 @@ main (int argc, char **argv){
   // ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
   ipHeader=(struct ip*)frame;
   icmpHeader=(struct icmp*)(ipHeader+sizeof(struct ip));
-
-  //config the data for icmp packet
-  icmpHeader->icmp_type=ICMP_ECHO;
-  icmpHeader->icmp_code=0;
-  char greeting[]="Hello World. Greetings from Rui Zheng.";
-  strcpy((char*)icmpHeader->icmp_data,greeting);
-  // std::cout<<"data:"<<icmpHeader->icmp_data<<std::endl;
-
-  //calculate ICMP checksum
-  icmpHeader->icmp_cksum=0;
-  icmpHeader->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
-
+  std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
+  std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
 
   //config the IP packet
 
   ipHeader->ip_v     = 4;  /*IPv4*/
-  ipHeader->ip_hl    = 20;  /* This is the smallest possible value, our IP header is only 20 bytes */
-  ipHeader->ip_tos   = 16;  /* low delay*/
+  ipHeader->ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
+  ipHeader->ip_tos   = 0;  /* low delay*/
   ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmp);
-  ipHeader->ip_id    = htons(0x1337);
+  ipHeader->ip_id    = htons(0x777);
   ipHeader->ip_off = 0;  /* do not fragement flag */
-  ipHeader->ip_ttl   = 5;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
+  ipHeader->ip_ttl   = 255;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
   ipHeader->ip_p    = 1;  /* #1 stands for ICMP */
   ipHeader->ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
 
@@ -173,18 +164,37 @@ main (int argc, char **argv){
   {
     ipHeader->ip_src.s_addr   = inet_addr(argv[1]); /* 1st argument is src address */
     ipHeader->ip_dst.s_addr   = inet_addr(argv[2]); /* 2nd argument is dst address */
+    std::cout<<"From "<<argv[1]<<" to "<<argv[2]<<"...\n";
   }
   //else, then the echo request from august to year
   else
   {
     ipHeader->ip_src.s_addr   = inet_addr("172.17.1.8"); /* 1st argument is src address */
     ipHeader->ip_dst.s_addr   = inet_addr("172.19.1.18"); /* 2nd argument is dst address */
+    std::cout<<"Default From 172.17.1.8 to 172.19.1.18...";
   }
+
   
+
+  //config the data for icmp packet
+  icmpHeader->icmp_type=ICMP_ECHO;
+  icmpHeader->icmp_code=0;
+  icmpHeader->icmp_id=htons(0x321);
+  icmpHeader->icmp_seq=htons(0x987);
+  // char greeting[]="Hello World. Greetings from Rui Zheng.";
+  // strcpy((char*)icmpHeader->icmp_data,greeting);
+  // std::cout<<"data:"<<icmpHeader->icmp_data<<std::endl;
+
+  //calculate ICMP checksum
+  icmpHeader->icmp_cksum=0;
+  // icmpHeader->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
+  std::cout<<"ICMP checksum:"<<icmpHeader->icmp_cksum<<std::endl;
+
 
   //calculate the ip header checksum
   ipHeader->ip_sum=calcsum((unsigned short*)ipHeader,sizeof(struct ip));
-  std::cout<<"ip checksum:"<<ipHeader->ip_sum;
+  std::cout<<"ip checksum:"<<ipHeader->ip_sum<<std::endl;
+
 
   frameLen=sizeof(struct ip)+sizeof(struct icmp);
   /*
@@ -198,12 +208,16 @@ main (int argc, char **argv){
 
   std::cout << "Attempting to send " << frameLen << " bytes ... " ;
 
-  const struct sockaddr *saPtr ;
-  size_t saLen ;
-  saPtr = reinterpret_cast<const sockaddr *>(&dllAddr) ;
-  saLen = sizeof(dllAddr) ;
-  ioRtnCode = sendto(sd,frame,frameLen,0,saPtr,saLen) ;
+  // const struct sockaddr *saPtr ;
+  // size_t saLen ;
+  // saPtr = reinterpret_cast<const sockaddr *>(&dllAddr) ;
+  // saLen = sizeof(dllAddr) ;
+  // ioRtnCode = sendto(sd,frame,frameLen,0,saPtr,saLen) ;
 
+  struct sockaddr_in dst;
+  dst.sin_family=AF_INET;
+  dst.sin_addr.s_addr=ipHeader->ip_dst.s_addr;
+  ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
   if (ioRtnCode < 0)
   { std::cout << "failed.\n  Result is " << ioRtnCode << "\n  " ;
     std::cout << strerror(errno) << "\n" ;
