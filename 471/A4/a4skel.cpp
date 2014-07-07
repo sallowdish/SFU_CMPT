@@ -139,8 +139,9 @@ main (int argc, char **argv){
   struct icmp *icmpHeader;
 
   //finger the pointers to corresponding positions in frame
-  ethernetHeader=(struct ether_header*)frame;
-  ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
+  // ethernetHeader=(struct ether_header*)frame;
+  // ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
+  ipHeader=(struct ip*)frame;
   icmpHeader=(struct icmp*)(ipHeader+sizeof(struct ip));
 
   //config the data for icmp packet
@@ -156,14 +157,15 @@ main (int argc, char **argv){
 
 
   //config the IP packet
+
   ipHeader->ip_v     = 4;  /*IPv4*/
-  ipHeader->ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
-  ipHeader->ip_tos   = 0;
+  ipHeader->ip_hl    = 20;  /* This is the smallest possible value, our IP header is only 20 bytes */
+  ipHeader->ip_tos   = 16;  /* low delay*/
   ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmp);
   ipHeader->ip_id    = htons(0x1337);
-  ipHeader->ip_off = IP_DF;  /* do not fragement flag */
+  ipHeader->ip_off = 0;  /* do not fragement flag */
   ipHeader->ip_ttl   = 5;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
-  ipHeader->ip_p    = 1;  /* protocol 1 says ICMP is next header */
+  ipHeader->ip_p    = 1;  /* #1 stands for ICMP */
   ipHeader->ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
 
   //if both src and dst addr are provide, use them
@@ -184,15 +186,15 @@ main (int argc, char **argv){
   ipHeader->ip_sum=calcsum((unsigned short*)ipHeader,sizeof(struct ip));
   std::cout<<"ip checksum:"<<ipHeader->ip_sum;
 
-  // echo.icmp_id=1
-  // std::cout<<"id"<<echo.icmp_id<<"\nseq"<<echo.icmp_seq;
-
+  frameLen=sizeof(struct ip)+sizeof(struct icmp);
   /*
   Send the frame. Don't forget to set the length of the
   finished frame. The sockaddr data type is a horribly
   overloaded union. The code is a bit more readable with an
   intermediate variable of type sockaddr.
   */
+
+
 
   std::cout << "Attempting to send " << frameLen << " bytes ... " ;
 
