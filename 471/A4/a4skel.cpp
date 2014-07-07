@@ -36,7 +36,12 @@
 
 #include <net/ethernet.h>
 
+/*
+  Ethernet, IP and ICMP header struct definition
+*/
+#include </usr/include/net/ethernet.h>
 #include </usr/include/netinet/ip_icmp.h>
+#include </usr/include/netinet/ip.h>
 
 unsigned short calcsum(unsigned short *buffer, int length);
 
@@ -121,18 +126,24 @@ main (){
   frame.
   */
 
-  //Constuct ICMP header
+  //Declaer varibles
+  struct ether_header *ethernetHeader;
+  struct ip *ipHeader;
+  struct icmp *icmpHeader;
 
-  struct icmp *echo;
-  echo->icmp_type=ICMP_ECHO;
-  echo->icmp_code=0;
+  //finger the pointers to corresponding positions in frame
+  ethernetHeader=(struct ether_header*)frame;
+  ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
+  icmpHeader=(struct icmp*)(ipHeader+sizeof(struct ip));
+  icmpHeader->icmp_type=ICMP_ECHO;
+  icmpHeader->icmp_code=0;
   char greeting[]="Hello World. Greetings from Rui Zheng.";
-  strcpy(echo->icmp_data,greeting);
-  std::cout<<"data:"<<echo->icmp_data;
-  std::cout<<"\necho.icmp_cksum="<<echo->icmp_cksum;
-  echo->icmp_cksum=calcsum((unsigned short*)echo,sizeof(icmp));
+  strcpy(icmpHeader->icmp_data,greeting);
+  std::cout<<"data:"<<icmpHeader->icmp_data;
+  std::cout<<"\necho.icmp_cksum="<<icmpHeader->icmp_cksum;
+  echo->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
 
-  std::cout<<"\necho.icmp_cksum="<<echo->icmp_cksum;
+  std::cout<<"\necho.icmp_cksum="<<icmpHeader->icmp_cksum;
 
 
   // echo.icmp_id=1
