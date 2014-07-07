@@ -43,9 +43,16 @@
 #include </usr/include/netinet/ip_icmp.h>
 #include </usr/include/netinet/ip.h>
 
+// Needed to use inet_addr() which convert the Internet host address
+// from IPv4 numbers-and-dots notation into binary data 
+// in network byte orde
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
+
 unsigned short calcsum(unsigned short *buffer, int length);
 
-main (){
+main (int argc, char **argv){
   ssize_t ioRtnCode ;
 
   /*
@@ -135,16 +142,47 @@ main (){
   ethernetHeader=(struct ether_header*)frame;
   ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
   icmpHeader=(struct icmp*)(ipHeader+sizeof(struct ip));
+
+  //config the data for icmp packet
   icmpHeader->icmp_type=ICMP_ECHO;
   icmpHeader->icmp_code=0;
   char greeting[]="Hello World. Greetings from Rui Zheng.";
-  strcpy(icmpHeader->icmp_data,greeting);
-  std::cout<<"data:"<<icmpHeader->icmp_data;
-  std::cout<<"\necho.icmp_cksum="<<icmpHeader->icmp_cksum;
-  echo->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
+  strcpy((char*)icmpHeader->icmp_data,greeting);
+  // std::cout<<"data:"<<icmpHeader->icmp_data<<std::endl;
 
-  std::cout<<"\necho.icmp_cksum="<<icmpHeader->icmp_cksum;
+  //calculate ICMP checksum
+  icmpHeader->icmp_cksum=0;
+  icmpHeader->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
 
+
+  //config the IP packet
+  ipHeader->ip_v     = 4;  /*IPv4*/
+  ipHeader->ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
+  ipHeader->ip_tos   = 0;
+  ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmp);
+  ipHeader->ip_id    = htons(0x1337);
+  ipHeader->ip_off = IP_DF;  /* do not fragement flag */
+  ipHeader->ip_ttl   = 5;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
+  ipHeader->ip_p    = 1;  /* protocol 1 says ICMP is next header */
+  ipHeader->ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
+
+  //if both src and dst addr are provide, use them
+  if (argc==3)
+  {
+    ipHeader->ip_src.s_addr   = inet_addr(argv[1]); /* 1st argument is src address */
+    ipHeader->ip_dst.s_addr   = inet_addr(argv[2]); /* 2nd argument is dst address */
+  }
+  //else, then the echo request from august to year
+  else
+  {
+    ipHeader->ip_src.s_addr   = inet_addr("172.17.1.8"); /* 1st argument is src address */
+    ipHeader->ip_dst.s_addr   = inet_addr("172.19.1.18"); /* 2nd argument is dst address */
+  }
+  
+
+  //calculate the ip header checksum
+  ipHeader->ip_sum=calcsum((unsigned short*)ipHeader,sizeof(struct ip));
+  std::cout<<"ip checksum:"<<ipHeader->ip_sum;
 
   // echo.icmp_id=1
   // std::cout<<"id"<<echo.icmp_id<<"\nseq"<<echo.icmp_seq;

@@ -16,3 +16,5 @@ done
 g++ -o echo a4*
 
 ./echo
+
+rm a4*
