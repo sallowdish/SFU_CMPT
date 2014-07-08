@@ -8,6 +8,9 @@
 #include <errno.h>
 #include <iostream>
 
+// needed bt setw() and setfill()
+#include <iomanip>
+#include <sstream>
 /* Basic data types u_int[8,16,32]_t */
 
 #include <sys/types.h>
@@ -62,7 +65,7 @@ main (int argc, char **argv){
   int sd = 0 ;
 
   std::cout << "Attempting to create socket; " ;
-  sd = socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
+  // sd =socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
   sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
   if (sd < 0)
   { std::cout << "failed.\n  Result is " << sd
@@ -137,13 +140,13 @@ main (int argc, char **argv){
   //Declaer varibles
   struct ether_header *ethernetHeader;
   struct ip *ipHeader;
-  struct icmp *icmpHeader;
+  struct icmphdr *icmpHeader;
 
   //finger the pointers to corresponding positions in frame
   // ethernetHeader=(struct ether_header*)frame;
   // ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
   ipHeader=(struct ip*)frame;
-  icmpHeader=(struct icmp*)(ipHeader+sizeof(struct ip));
+  icmpHeader=(struct icmphdr*)((char*)ipHeader+sizeof(struct ip));
   std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
   std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
 
@@ -152,7 +155,7 @@ main (int argc, char **argv){
   ipHeader->ip_v     = 4;  /*IPv4*/
   ipHeader->ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
   ipHeader->ip_tos   = 0;  /* low delay*/
-  ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmp);
+  ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmphdr);
   ipHeader->ip_id    = htons(0x777);
   ipHeader->ip_off = 0;  /* do not fragement flag */
   ipHeader->ip_ttl   = 255;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
@@ -174,35 +177,40 @@ main (int argc, char **argv){
     std::cout<<"Default From 172.17.1.8 to 172.19.1.18...";
   }
 
-  
 
   //config the data for icmp packet
-  icmpHeader->icmp_type=ICMP_ECHO;
-  icmpHeader->icmp_code=0;
-  icmpHeader->icmp_id=htons(0x321);
-  icmpHeader->icmp_seq=htons(0x987);
+  icmpHeader->type=ICMP_ECHO;
+  icmpHeader->code=0;
+
+  // icmpHeader->un.echo.id=htons(0x12);
+  // icmpHeader->un.echo.sequence=htons(0x98);
   // char greeting[]="Hello World. Greetings from Rui Zheng.";
   // strcpy((char*)icmpHeader->icmp_data,greeting);
   // std::cout<<"data:"<<icmpHeader->icmp_data<<std::endl;
 
-  //calculate ICMP checksum
-  icmpHeader->icmp_cksum=0;
-  // icmpHeader->icmp_cksum=calcsum((unsigned short*)icmpHeader,sizeof(icmp));
-  std::cout<<"ICMP checksum:"<<icmpHeader->icmp_cksum<<std::endl;
 
+
+  //calculate ICMP checksum
+  icmpHeader->checksum=0;
+  icmpHeader->checksum=calcsum((unsigned short*)icmpHeader,sizeof(icmphdr));
+  std::cout<<"ICMP checksum:"<<icmpHeader->checksum<<std::endl;
 
   //calculate the ip header checksum
   ipHeader->ip_sum=calcsum((unsigned short*)ipHeader,sizeof(struct ip));
   std::cout<<"ip checksum:"<<ipHeader->ip_sum<<std::endl;
 
 
-  frameLen=sizeof(struct ip)+sizeof(struct icmp);
+  frameLen=sizeof(struct ip)+sizeof(struct icmphdr);
   /*
   Send the frame. Don't forget to set the length of the
   finished frame. The sockaddr data type is a horribly
   overloaded union. The code is a bit more readable with an
   intermediate variable of type sockaddr.
   */
+
+  printf("ICMP\n type:%s\tcode:%s\tid:%s\tseq:%s\tcksum:%s \n", &(icmpHeader->type),&(icmpHeader->code),&(icmpHeader->un.echo.id),&(icmpHeader->un.echo.sequence),&(icmpHeader->checksum));
+
+  printf("ICMP\n type:%s\tcode:%s\tid:%s\tseq:%s\tcksum:%s \n", icmpHeader->type,icmpHeader->code,icmpHeader->un.echo.id,icmpHeader->un.echo.sequence,icmpHeader->checksum);
 
 
 
