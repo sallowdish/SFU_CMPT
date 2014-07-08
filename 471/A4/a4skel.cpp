@@ -139,68 +139,75 @@ main (int argc, char **argv){
 
   //Declaer varibles
   struct ether_header *ethernetHeader;
-  struct ip *ipHeader;
-  struct icmphdr *icmpHeader;
+  struct ip ipHeader;
+  struct icmp icmpHeader;
 
   //finger the pointers to corresponding positions in frame
   // ethernetHeader=(struct ether_header*)frame;
   // ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
-  ipHeader=(struct ip*)frame;
-  icmpHeader=(struct icmphdr*)((char*)ipHeader+sizeof(struct ip));
-  std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
-  std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
+  // ipHeader=(struct ip*)frame;
+  // icmpHeader=(struct icmp*)(frame+sizeof(struct ip));
+  // std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
+  // std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
 
   //config the IP packet
 
-  ipHeader->ip_v     = 4;  /*IPv4*/
-  ipHeader->ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
-  ipHeader->ip_tos   = 0;  /* low delay*/
-  ipHeader->ip_len  = sizeof(struct ip)+sizeof(struct icmphdr);
-  ipHeader->ip_id    = htons(0x777);
-  ipHeader->ip_off = 0;  /* do not fragement flag */
-  ipHeader->ip_ttl   = 255;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
-  ipHeader->ip_p    = 1;  /* #1 stands for ICMP */
-  ipHeader->ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
+  ipHeader.ip_v     = 4;  /*IPv4*/
+  ipHeader.ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
+  ipHeader.ip_tos   = 0;  /* low delay*/
+  ipHeader.ip_len  = sizeof(struct ip)+sizeof(struct icmp);
+  ipHeader.ip_id    = htons(0x777);
+  ipHeader.ip_off = 0;  /* do not fragement flag */
+  ipHeader.ip_ttl   = 255;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
+  ipHeader.ip_p    = 1;  /* #1 stands for ICMP */
+  ipHeader.ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
 
   //if both src and dst addr are provide, use them
   if (argc==3)
   {
-    ipHeader->ip_src.s_addr   = inet_addr(argv[1]); /* 1st argument is src address */
-    ipHeader->ip_dst.s_addr   = inet_addr(argv[2]); /* 2nd argument is dst address */
+    ipHeader.ip_src.s_addr   = inet_addr(argv[1]); /* 1st argument is src address */
+    ipHeader.ip_dst.s_addr   = inet_addr(argv[2]); /* 2nd argument is dst address */
     std::cout<<"From "<<argv[1]<<" to "<<argv[2]<<"...\n";
   }
   //else, then the echo request from august to year
   else
   {
-    ipHeader->ip_src.s_addr   = inet_addr("172.17.1.8"); /* 1st argument is src address */
-    ipHeader->ip_dst.s_addr   = inet_addr("172.19.1.18"); /* 2nd argument is dst address */
+    ipHeader.ip_src.s_addr   = inet_addr("172.17.1.8"); /* 1st argument is src address */
+    ipHeader.ip_dst.s_addr   = inet_addr("172.19.1.18"); /* 2nd argument is dst address */
     std::cout<<"Default From 172.17.1.8 to 172.19.1.18...";
   }
 
 
   //config the data for icmp packet
-  icmpHeader->type=ICMP_ECHO;
-  icmpHeader->code=0;
+  icmpHeader.icmp_type=ICMP_ECHO;
+  icmpHeader.icmp_code=0;
 
-  // icmpHeader->un.echo.id=htons(0x12);
-  // icmpHeader->un.echo.sequence=htons(0x98);
+  // icmpHeader.un.echo.id=htons(0x12);
+  // icmpHeader.un.echo.sequence=htons(0x98);
   // char greeting[]="Hello World. Greetings from Rui Zheng.";
-  // strcpy((char*)icmpHeader->icmp_data,greeting);
-  // std::cout<<"data:"<<icmpHeader->icmp_data<<std::endl;
+  // strcpy((char*)icmpHeader.icmp_data,greeting);
+  // std::cout<<"data:"<<icmpHeader.icmp_data<<std::endl;
 
-
-
-  //calculate ICMP checksum
-  icmpHeader->checksum=0;
-  icmpHeader->checksum=calcsum((unsigned short*)icmpHeader,sizeof(icmphdr));
-  std::cout<<"ICMP checksum:"<<icmpHeader->checksum<<std::endl;
 
   //calculate the ip header checksum
-  ipHeader->ip_sum=calcsum((unsigned short*)ipHeader,sizeof(struct ip));
-  std::cout<<"ip checksum:"<<ipHeader->ip_sum<<std::endl;
+  ipHeader.ip_sum=calcsum((unsigned short*)&ipHeader,sizeof(struct ip));
+  std::cout<<"ip checksum:"<<ipHeader.ip_sum<<std::endl;
+
+  icmpHeader.icmp_ip=ipHeader;
+
+  //calculate ICMP checksum
+  icmpHeader.icmp_cksum=0;
+  icmpHeader.icmp_cksum=calcsum((unsigned short*)&icmpHeader,sizeof(icmp));
+  std::cout<<"ICMP checksum:"<<icmpHeader.icmp_cksum<<std::endl;
 
 
-  frameLen=sizeof(struct ip)+sizeof(struct icmphdr);
+  // std::cout<<frame+sizeof(struct ip)<<"\t\t"<<frame<<"\ticmp:"<<sizeof(struct icmphdr)<<"\n";
+  //copy the ip header and ICMP header into buffer
+
+  // memcpy(frame,&ipHeader,sizeof(struct ip));
+  memcpy(frame,&icmpHeader,sizeof(struct icmp));  
+
+  frameLen=sizeof(struct icmp);
   /*
   Send the frame. Don't forget to set the length of the
   finished frame. The sockaddr data type is a horribly
@@ -208,9 +215,9 @@ main (int argc, char **argv){
   intermediate variable of type sockaddr.
   */
 
-  printf("ICMP\n type:%s\tcode:%s\tid:%s\tseq:%s\tcksum:%s \n", &(icmpHeader->type),&(icmpHeader->code),&(icmpHeader->un.echo.id),&(icmpHeader->un.echo.sequence),&(icmpHeader->checksum));
+  std::cout<<"ICMP\n type:"<<&(icmpHeader.icmp_type)<<"\tcode:"<<&(icmpHeader.icmp_code)<<"\tid:"<<&(icmpHeader.icmp_id)<<"\tseq:"<<&(icmpHeader.icmp_seq)<<"\ttcksum:"<<&(icmpHeader.icmp_cksum)<<"\n";
 
-  printf("ICMP\n type:%s\tcode:%s\tid:%s\tseq:%s\tcksum:%s \n", icmpHeader->type,icmpHeader->code,icmpHeader->un.echo.id,icmpHeader->un.echo.sequence,icmpHeader->checksum);
+  std::cout<<"ICMP\n type:"<<icmpHeader.icmp_type<<"\tcode:"<<icmpHeader.icmp_code<<"\tid:"<<std::hex<<(icmpHeader.icmp_id)<<"\tseq:"<<(icmpHeader.icmp_seq)<<"\ttcksum:"<<icmpHeader.icmp_cksum<<"\n";
 
 
 
@@ -224,7 +231,7 @@ main (int argc, char **argv){
 
   struct sockaddr_in dst;
   dst.sin_family=AF_INET;
-  dst.sin_addr.s_addr=ipHeader->ip_dst.s_addr;
+  dst.sin_addr.s_addr=ipHeader.ip_dst.s_addr;
   ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
   if (ioRtnCode < 0)
   { std::cout << "failed.\n  Result is " << ioRtnCode << "\n  " ;
