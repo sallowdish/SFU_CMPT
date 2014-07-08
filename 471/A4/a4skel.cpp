@@ -53,6 +53,8 @@
 #include <arpa/inet.h>
 
 
+#define DATALEN 50
+
 unsigned short calcsum(unsigned short *buffer, int length);
 
 main (int argc, char **argv){
@@ -182,9 +184,7 @@ main (int argc, char **argv){
   icmpHeader.icmp_type=ICMP_ECHO;
   icmpHeader.icmp_code=0;
 
-  // icmpHeader.un.echo.id=htons(0x12);
-  // icmpHeader.un.echo.sequence=htons(0x98);
-  // char greeting[]="Hello World. Greetings from Rui Zheng.";
+  char greeting[DATALEN]="Hello World. Greetings from Rui Zheng.";
   // strcpy((char*)icmpHeader.icmp_data,greeting);
   // std::cout<<"data:"<<icmpHeader.icmp_data<<std::endl;
 
@@ -205,9 +205,10 @@ main (int argc, char **argv){
   //copy the ip header and ICMP header into buffer
 
   // memcpy(frame,&ipHeader,sizeof(struct ip));
-  memcpy(frame,&icmpHeader,sizeof(struct icmp));  
+  memcpy(frame,&icmpHeader,sizeof(struct icmp)); 
+  memcpy(frame+sizeof(struct icmp),greeting,DATALEN); 
 
-  frameLen=sizeof(struct icmp);
+  frameLen=sizeof(struct icmp)+DATALEN;
   /*
   Send the frame. Don't forget to set the length of the
   finished frame. The sockaddr data type is a horribly
