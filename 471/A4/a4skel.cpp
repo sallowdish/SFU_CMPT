@@ -67,8 +67,8 @@ main (int argc, char **argv){
   int sd = 0 ;
 
   std::cout << "Attempting to create socket; " ;
-  // sd =socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
-  sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
+  sd = socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
+  // sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
   if (sd < 0)
   { std::cout << "failed.\n  Result is " << sd
   	      << ". Are you running as root?\n  " ;
@@ -216,24 +216,18 @@ main (int argc, char **argv){
   intermediate variable of type sockaddr.
   */
 
-  std::cout<<"ICMP\n type:"<<&(icmpHeader.icmp_type)<<"\tcode:"<<&(icmpHeader.icmp_code)<<"\tid:"<<&(icmpHeader.icmp_id)<<"\tseq:"<<&(icmpHeader.icmp_seq)<<"\ttcksum:"<<&(icmpHeader.icmp_cksum)<<"\n";
-
-  std::cout<<"ICMP\n type:"<<icmpHeader.icmp_type<<"\tcode:"<<icmpHeader.icmp_code<<"\tid:"<<std::hex<<(icmpHeader.icmp_id)<<"\tseq:"<<(icmpHeader.icmp_seq)<<"\ttcksum:"<<icmpHeader.icmp_cksum<<"\n";
-
-
-
   std::cout << "Attempting to send " << frameLen << " bytes ... " ;
 
-  // const struct sockaddr *saPtr ;
-  // size_t saLen ;
-  // saPtr = reinterpret_cast<const sockaddr *>(&dllAddr) ;
-  // saLen = sizeof(dllAddr) ;
-  // ioRtnCode = sendto(sd,frame,frameLen,0,saPtr,saLen) ;
+  const struct sockaddr *saPtr ;
+  size_t saLen ;
+  saPtr = reinterpret_cast<const sockaddr *>(&dllAddr) ;
+  saLen = sizeof(dllAddr) ;
+  ioRtnCode = sendto(sd,frame,frameLen,0,saPtr,saLen) ;
 
-  struct sockaddr_in dst;
-  dst.sin_family=AF_INET;
-  dst.sin_addr.s_addr=ipHeader.ip_dst.s_addr;
-  ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
+  // struct sockaddr_in dst;
+  // dst.sin_family=AF_INET;
+  // dst.sin_addr.s_addr=ipHeader.ip_dst.s_addr;
+  // ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
   if (ioRtnCode < 0)
   { std::cout << "failed.\n  Result is " << ioRtnCode << "\n  " ;
     std::cout << strerror(errno) << "\n" ;
