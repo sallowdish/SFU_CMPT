@@ -52,13 +52,19 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-
+/* Macro the length of msg in ICMP Echo Request*/
 #define DATALEN 50
 // #define PREAMBLELEN 8
 
 unsigned short calcsum(unsigned short *buffer, int length);
 
 main (int argc, char **argv){
+  if (argc!=1 && argc!=3 && argc!=5)
+  {
+    printf("usage: echo [ src_IPv4_address dst_IPv4_address [src_Ether_address dst_Ether_address] ]\n");
+    exit(1);
+  }
+
   ssize_t ioRtnCode ;
 
   /*
@@ -68,7 +74,15 @@ main (int argc, char **argv){
   int sd = 0 ;
 
   std::cout << "Attempting to create socket; " ;
-  sd = socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
+
+  //if only network layer info is given, craft IP packet rather than Ethernet frame
+  if (argc==3)
+  {
+    sd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW) ;
+  }else{
+    sd = socket(PF_PACKET,SOCK_RAW,ETHERTYPE_IP) ;
+  }
+  
   // sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
   if (sd < 0)
   { std::cout << "failed.\n  Result is " << sd
@@ -86,6 +100,7 @@ main (int argc, char **argv){
   */
   struct ifreq ifioctl ;
   int ifNdx ;
+  u_int8_t localMAC[ETH_ALEN];
   ifioctl.ifr_ifrn.ifrn_name[0] = 'e' ;
   ifioctl.ifr_ifrn.ifrn_name[1] = 't' ;
   ifioctl.ifr_ifrn.ifrn_name[2] = 'h' ;
@@ -101,7 +116,9 @@ main (int argc, char **argv){
     exit (2) ; }
   else
   { ifNdx = ifioctl.ifr_ifru.ifru_ivalue ;
-    std::cout << "index is " << ifNdx << "\n" ; }
+    memcpy(localMAC,ifioctl.ifr_hwaddr.sa_data,ETH_ALEN);
+    std::cout << "index is " << ifNdx << "\n" ;
+  }
 
   /*
   The address structure used for a packet socket. Family
@@ -198,40 +215,70 @@ main (int argc, char **argv){
 
   ethernetHeader.ether_type=htons(ETHERTYPE_IP);
   u_int8_t srcMAC[ETH_ALEN],dstMAC[ETH_ALEN];
-  if (argc==5)
+  //configur the Ethernet header 
+  if (argc==1)
   {
-    sscanf(argv[4], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
-    sscanf(argv[3], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
-
-  }else{
+    //default ethernet frame
     //august 00:50:56:a4:05:33
     //year  00:50:56:a4:2b:16
     //january 00:50:56:a4:0b:bb
     sscanf("00:50:56:a4:05:33", "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
     sscanf("00:50:56:a4:0b:bb", "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
+    printf("srcMAC:%02x:%02x:%02x:%02x:%02x:%02x\ndstMAC:%02x:%02x:%02x:%02x:%02x:%02x\n",srcMAC[0], srcMAC[1], srcMAC[2], srcMAC[3], srcMAC[4], srcMAC[5],dstMAC[0], dstMAC[1], dstMAC[2], dstMAC[3], dstMAC[4], dstMAC[5] );
+    memcpy(ethernetHeader.ether_shost,srcMAC,ETH_ALEN);
+    memcpy(ethernetHeader.ether_dhost,dstMAC,ETH_ALEN);
   }
-  printf("srcMAC:%02x:%02x:%02x:%02x:%02x:%02x\ndstMAC:%02x:%02x:%02x:%02x:%02x:%02x\n",srcMAC[0], srcMAC[1], srcMAC[2], srcMAC[3], srcMAC[4], srcMAC[5],dstMAC[0], dstMAC[1], dstMAC[2], dstMAC[3], dstMAC[4], dstMAC[5] );
-  memcpy(ethernetHeader.ether_shost,srcMAC,ETH_ALEN);
-  memcpy(ethernetHeader.ether_dhost,dstMAC,ETH_ALEN);  
+  else if (argc==5)
+  {
+    //if Link-Layer info is given
+    
 
+    sscanf(argv[3], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
+    sscanf(argv[4], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
+    printf("srcMAC:%02x:%02x:%02x:%02x:%02x:%02x\ndstMAC:%02x:%02x:%02x:%02x:%02x:%02x\n",srcMAC[0], srcMAC[1], srcMAC[2], srcMAC[3], srcMAC[4], srcMAC[5],dstMAC[0], dstMAC[1], dstMAC[2], dstMAC[3], dstMAC[4], dstMAC[5] );
+    memcpy(ethernetHeader.ether_shost,srcMAC,ETH_ALEN);
+    memcpy(ethernetHeader.ether_dhost,dstMAC,ETH_ALEN);
+  }else{
+  }
+
+
+  //Index of different header inside buffer
+  char *etherOffset, *ipOffset,*icmpOffset,*dataOffset;
+  //if Ethernet Header is crafted
   //copy the Ethernet header, ip header,ICMP header and data into buffer in turn
-  char *etherOffset=frame, *ipOffset=frame+sizeof(struct ether_header),*icmpOffset=frame+sizeof(struct ether_header)+sizeof(struct ip),*dataOffset=icmpOffset+sizeof(struct icmphdr);
+  if (argc==1 || argc==5)
+  {
+    etherOffset=frame;
+    ipOffset=frame+sizeof(struct ether_header);
+    icmpOffset=frame+sizeof(struct ether_header)+sizeof(struct ip);
+    dataOffset=icmpOffset+sizeof(struct icmphdr);
 
-  // printf("Ether:%p\tIP:%p\tICMP:%p\tData:%p\n",etherOffset,ipOffset,icmpOffset,dataOffset);
+    //copy into buffer
+    memcpy(etherOffset,&ethernetHeader,sizeof(struct ether_header));
+    memcpy(ipOffset,&ipHeader,sizeof(struct ip)); 
+    memcpy(icmpOffset,&icmpHeader,sizeof(struct icmphdr));
+    memcpy(dataOffset,greeting,DATALEN); 
 
-  memcpy(etherOffset,&ethernetHeader,sizeof(struct ether_header));
-  memcpy(ipOffset,&ipHeader,sizeof(struct ip)); 
-  memcpy(icmpOffset,&icmpHeader,sizeof(struct icmphdr));
-  memcpy(dataOffset,greeting,DATALEN); 
+    //calculate the total length of crafted Ethernet frame
+    frameLen=sizeof(struct ether_header)+sizeof(struct ip)+sizeof(struct icmphdr)+DATALEN;
+  }
+  //otherwise, send IP packet rather than Ethernet frame
+  else{
+    ipOffset=frame;
+    icmpOffset=frame+sizeof(struct ip);
+    dataOffset=frame+sizeof(struct ip)+sizeof(struct icmphdr);
 
+    //copy into buffer
+    memcpy(ipOffset,&ipHeader,sizeof(struct ip)); 
+    memcpy(icmpOffset,&icmpHeader,sizeof(struct icmphdr));
+    memcpy(dataOffset,greeting,DATALEN);
 
-    //calculate ICMP checksum
+    frameLen=sizeof(struct ip)+sizeof(struct icmphdr)+DATALEN;
+  }
 
-  struct icmphdr *icmpPtr=(struct icmphdr *)icmpOffset;
-  icmpPtr->checksum=calcsum((unsigned short*)icmpOffset,sizeof(icmphdr)+DATALEN);
-  // std::cout<<"ICMP checksum:"<<  icmpPtr->checksum<<std::endl;
-
-  frameLen=sizeof(struct ether_header)+sizeof(struct ip)+sizeof(struct icmphdr)+DATALEN;
+  //calculate ICMP checksum
+    struct icmphdr *icmpPtr=(struct icmphdr *)icmpOffset;
+    icmpPtr->checksum=calcsum((unsigned short*)icmpOffset,sizeof(icmphdr)+DATALEN);
 
   /*
   Send the frame. Don't forget to set the length of the
@@ -256,16 +303,23 @@ main (int argc, char **argv){
 
   std::cout<<std::dec << "Attempting to send " << frameLen << " bytes ... " ;
 
+//if only network layer info is given, construct socketaddr using IP address
+if (argc==3)
+{
+  struct sockaddr_in dst;
+  dst.sin_family=AF_INET;
+  dst.sin_addr.s_addr=ipHeader.ip_dst.s_addr;
+  ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
+}
+//if link layer info is given, construct socketaddr using MAC address
+else{
   const struct sockaddr *saPtr ;
   size_t saLen ;
   saPtr = reinterpret_cast<const sockaddr *>(&dllAddr) ;
   saLen = sizeof(dllAddr) ;
   ioRtnCode = sendto(sd,frame,frameLen,0,saPtr,saLen) ;
-
-  // struct sockaddr_in dst;
-  // dst.sin_family=AF_INET;
-  // dst.sin_addr.s_addr=ipHeader.ip_dst.s_addr;
-  // ioRtnCode=sendto(sd,frame,frameLen,0,(struct sockaddr*)&dst,sizeof(struct sockaddr));
+}
+  
   if (ioRtnCode < 0)
   { std::cout << "failed.\n  Result is " << ioRtnCode << "\n  " ;
     std::cout << strerror(errno) << "\n" ;
