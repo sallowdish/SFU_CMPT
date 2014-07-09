@@ -162,6 +162,15 @@ main (int argc, char **argv){
   struct ip ipHeader;
   struct icmphdr icmpHeader;
 
+  //finger the pointers to corresponding positions in frame
+  // ethernetHeader=(struct ether_header*)frame;
+  // ipHeader=(struct ip*)(ethernetHeader+sizeof(struct ether_header));
+  // ipHeader=(struct ip*)frame;
+  // icmpHeader=(struct icmp*)(frame+sizeof(struct ip));
+  // std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
+  // std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
+
+
   //config icmp packet
   icmpHeader.type=ICMP_ECHO;
   icmpHeader.code=0;
@@ -199,6 +208,7 @@ main (int argc, char **argv){
     printf("From\t%s\nTo\t%s\n","172.17.1.8","172.19.1.18" );
   }
 
+
   //calculate the ip header checksum
   ipHeader.ip_sum=calcsum((unsigned short*)&ipHeader,sizeof(struct ip));
 
@@ -221,6 +231,8 @@ main (int argc, char **argv){
   else if (argc==5)
   {
     //if Link-Layer info is given
+    
+
     sscanf(argv[3], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
     sscanf(argv[4], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
     printf("srcMAC:%02x:%02x:%02x:%02x:%02x:%02x\ndstMAC:%02x:%02x:%02x:%02x:%02x:%02x\n",srcMAC[0], srcMAC[1], srcMAC[2], srcMAC[3], srcMAC[4], srcMAC[5],dstMAC[0], dstMAC[1], dstMAC[2], dstMAC[3], dstMAC[4], dstMAC[5] );
@@ -228,6 +240,7 @@ main (int argc, char **argv){
     memcpy(ethernetHeader.ether_dhost,dstMAC,ETH_ALEN);
   }else{
   }
+
 
   //Index of different header inside buffer
   char *etherOffset, *ipOffset,*icmpOffset,*dataOffset;
@@ -317,10 +330,12 @@ else{
   exit (0) ; 
 }
 
+
 /*
 Sample Code from sendicmp.c.txt ofDickBits.
 http://sickbits.net/code2/sendicmp.c.txt
 */
+
 /* calcsum - used to calculate IP and ICMP header checksums using
  * one's compliment of the one's compliment sum of 16 bit words of the header
  */
