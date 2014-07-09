@@ -54,6 +54,7 @@
 
 
 #define DATALEN 50
+// #define PREAMBLELEN 8
 
 unsigned short calcsum(unsigned short *buffer, int length);
 
@@ -140,9 +141,9 @@ main (int argc, char **argv){
   */
 
   //Declaer varibles
-  struct ether_header *ethernetHeader;
+  struct ether_header ethernetHeader;
   struct ip ipHeader;
-  struct icmp icmpHeader;
+  struct icmphdr icmpHeader;
 
   //finger the pointers to corresponding positions in frame
   // ethernetHeader=(struct ether_header*)frame;
@@ -152,12 +153,21 @@ main (int argc, char **argv){
   // std::cout<<"IP header:"<<ipHeader<<"\tICMP header:"<<icmpHeader<<std::endl;
   // std::cout<<"Diff:"<<(long)icmpHeader-(long)ipHeader<<std::endl;
 
-  //config the IP packet
+
+  //config icmp packet
+  icmpHeader.type=ICMP_ECHO;
+  icmpHeader.code=0;
+  icmpHeader.checksum=0;
+
+  //msg carried by ICMP Echo request
+  char greeting[DATALEN]="Hello World. Greetings from Rui Zheng.";
+
+  //config the IP header
 
   ipHeader.ip_v     = 4;  /*IPv4*/
   ipHeader.ip_hl    = 5;  /* This is the smallest possible value, our IP header is only 20 bytes */
   ipHeader.ip_tos   = 0;  /* low delay*/
-  ipHeader.ip_len  = sizeof(struct ip)+sizeof(struct icmp);
+  ipHeader.ip_len  = htons(sizeof(struct ip)+sizeof(struct icmphdr)+DATALEN);
   ipHeader.ip_id    = htons(0x777);
   ipHeader.ip_off = 0;  /* do not fragement flag */
   ipHeader.ip_ttl   = 255;  /* packets should pass thru at most 4 routers to arrive at the destination in VNL*/
@@ -165,50 +175,64 @@ main (int argc, char **argv){
   ipHeader.ip_sum    = 0;  /* initialize this to zero to properly calculate checksum */
 
   //if both src and dst addr are provide, use them
-  if (argc==3)
+  if (argc==3 || argc==5)
   {
     ipHeader.ip_src.s_addr   = inet_addr(argv[1]); /* 1st argument is src address */
     ipHeader.ip_dst.s_addr   = inet_addr(argv[2]); /* 2nd argument is dst address */
-    std::cout<<"From "<<argv[1]<<" to "<<argv[2]<<"...\n";
+    // std::cout<<"From "<<argv[1]<<" to "<<argv[2]<<"...\n";
+    printf("From %s\nTo %s\n",argv[1],argv[2] );
   }
   //else, then the echo request from august to year
   else
   {
     ipHeader.ip_src.s_addr   = inet_addr("172.17.1.8"); /* 1st argument is src address */
     ipHeader.ip_dst.s_addr   = inet_addr("172.19.1.18"); /* 2nd argument is dst address */
-    std::cout<<"Default From 172.17.1.8 to 172.19.1.18...";
+    // std::cout<<"Default From 172.17.1.8 to 172.19.1.18...";
+    printf("From\t%s\nTo\t%s\n","172.17.1.8","172.19.1.18" );
   }
-
-
-  //config the data for icmp packet
-  icmpHeader.icmp_type=ICMP_ECHO;
-  icmpHeader.icmp_code=0;
-
-  char greeting[DATALEN]="Hello World. Greetings from Rui Zheng.";
-  // strcpy((char*)icmpHeader.icmp_data,greeting);
-  // std::cout<<"data:"<<icmpHeader.icmp_data<<std::endl;
 
 
   //calculate the ip header checksum
   ipHeader.ip_sum=calcsum((unsigned short*)&ipHeader,sizeof(struct ip));
-  std::cout<<"ip checksum:"<<ipHeader.ip_sum<<std::endl;
-
-  icmpHeader.icmp_ip=ipHeader;
-
-  //calculate ICMP checksum
-  icmpHeader.icmp_cksum=0;
-  icmpHeader.icmp_cksum=calcsum((unsigned short*)&icmpHeader,sizeof(icmp));
-  std::cout<<"ICMP checksum:"<<icmpHeader.icmp_cksum<<std::endl;
 
 
-  // std::cout<<frame+sizeof(struct ip)<<"\t\t"<<frame<<"\ticmp:"<<sizeof(struct icmphdr)<<"\n";
-  //copy the ip header and ICMP header into buffer
+  ethernetHeader.ether_type=htons(ETHERTYPE_IP);
+  u_int8_t srcMAC[ETH_ALEN],dstMAC[ETH_ALEN];
+  if (argc==5)
+  {
+    sscanf(argv[4], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
+    sscanf(argv[3], "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
 
-  // memcpy(frame,&ipHeader,sizeof(struct ip));
-  memcpy(frame,&icmpHeader,sizeof(struct icmp)); 
-  memcpy(frame+sizeof(struct icmp),greeting,DATALEN); 
+  }else{
+    //august 00:50:56:a4:05:33
+    //year  00:50:56:a4:2b:16
+    //january 00:50:56:a4:0b:bb
+    sscanf("00:50:56:a4:05:33", "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &srcMAC[0], &srcMAC[1], &srcMAC[2], &srcMAC[3], &srcMAC[4], &srcMAC[5]);
+    sscanf("00:50:56:a4:0b:bb", "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &dstMAC[0], &dstMAC[1], &dstMAC[2], &dstMAC[3], &dstMAC[4], &dstMAC[5]);
+  }
+  printf("srcMAC:%02x:%02x:%02x:%02x:%02x:%02x\ndstMAC:%02x:%02x:%02x:%02x:%02x:%02x\n",srcMAC[0], srcMAC[1], srcMAC[2], srcMAC[3], srcMAC[4], srcMAC[5],dstMAC[0], dstMAC[1], dstMAC[2], dstMAC[3], dstMAC[4], dstMAC[5] );
+  memcpy(ethernetHeader.ether_shost,srcMAC,ETH_ALEN);
+  memcpy(ethernetHeader.ether_dhost,dstMAC,ETH_ALEN);  
 
-  frameLen=sizeof(struct icmp)+DATALEN;
+  //copy the Ethernet header, ip header,ICMP header and data into buffer in turn
+  char *etherOffset=frame, *ipOffset=frame+sizeof(struct ether_header),*icmpOffset=frame+sizeof(struct ether_header)+sizeof(struct ip),*dataOffset=icmpOffset+sizeof(struct icmphdr);
+
+  // printf("Ether:%p\tIP:%p\tICMP:%p\tData:%p\n",etherOffset,ipOffset,icmpOffset,dataOffset);
+
+  memcpy(etherOffset,&ethernetHeader,sizeof(struct ether_header));
+  memcpy(ipOffset,&ipHeader,sizeof(struct ip)); 
+  memcpy(icmpOffset,&icmpHeader,sizeof(struct icmphdr));
+  memcpy(dataOffset,greeting,DATALEN); 
+
+
+    //calculate ICMP checksum
+
+  struct icmphdr *icmpPtr=(struct icmphdr *)icmpOffset;
+  icmpPtr->checksum=calcsum((unsigned short*)icmpOffset,sizeof(icmphdr)+DATALEN);
+  // std::cout<<"ICMP checksum:"<<  icmpPtr->checksum<<std::endl;
+
+  frameLen=sizeof(struct ether_header)+sizeof(struct ip)+sizeof(struct icmphdr)+DATALEN;
+
   /*
   Send the frame. Don't forget to set the length of the
   finished frame. The sockaddr data type is a horribly
@@ -216,7 +240,21 @@ main (int argc, char **argv){
   intermediate variable of type sockaddr.
   */
 
-  std::cout << "Attempting to send " << frameLen << " bytes ... " ;
+  // std::cout << "Attempting to create listen socket; " ;
+  // int recv=socket(AF_INET,SOCK_ICMP,0)
+  // // sd = socket(AF_INET,SOCK_RAW,IPPROTO_ICMP) ;
+  // if (recv < 0){ 
+  //   std::cout << "failed to create listen socket.\n  Result is " << recv<< ".\n";
+  //   std::cout << strerror(errno) << "\n";
+  //   exit (1);
+  // }
+  // else{
+  //   std::cout << "descriptor is " << recv << ".\n" ; 
+  // }
+
+
+
+  std::cout<<std::dec << "Attempting to send " << frameLen << " bytes ... " ;
 
   const struct sockaddr *saPtr ;
   size_t saLen ;

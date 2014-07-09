@@ -15,10 +15,11 @@ done
 
 g++ -o echo a4*
 
-while [[ "$(ls -1|wc -l)" -lt 4 ]]; do
-	sleep 2
-done
-
-rm a4*
-
-./echo 172.17.1.8 172.19.1.18
+if [[ $? -ne 0 ]]; 
+then
+	rm a4*
+	echo "make failed"
+else
+	rm a4*
+	./echo 172.17.1.8 172.19.1.18
+fi
